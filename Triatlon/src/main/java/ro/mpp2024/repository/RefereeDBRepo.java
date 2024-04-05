@@ -3,6 +3,7 @@ package ro.mpp2024.repository;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import ro.mpp2024.JdbcUtils;
+import ro.mpp2024.domain.Participant;
 import ro.mpp2024.domain.Referee;
 import ro.mpp2024.domain.Trial;
 
@@ -13,7 +14,6 @@ public class RefereeDBRepo implements RefereeRepository {
 
     private JdbcUtils dbUtils;
 
-    private TrialRepository trialRepository;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -53,16 +53,19 @@ public class RefereeDBRepo implements RefereeRepository {
     public Optional<Referee> getById(Long id) {
         logger.traceEntry("Getting referee with id {}", id);
         Connection con = dbUtils.getConnection();
-        try (PreparedStatement preStmt = con.prepareStatement("SELECT * FROM referees WHERE id = ?")) {
+        try (PreparedStatement preStmt = con.prepareStatement("SELECT referees.id, referees.name, referees.password, referees.trial_id, trials.name FROM referees INNER JOIN trials ON referees.trial_id = trials.id WHERE referees.id = ?")) {
             preStmt.setLong(1, id);
             try (ResultSet result = preStmt.executeQuery()) {
                 if (result.next()) {
                     String name = result.getString("name");
                     String password = result.getString("password");
                     Long trialId = result.getLong("trial_id");
-                    // Assuming you have a TrialRepository and a method getById to fetch Trial object by id
-                    Trial trial = trialRepository.getById(trialId).orElse(null);
+                    String trialName = result.getString("name");
+                    List<Participant> participants = getParticipantsForTrialRef(trialId);
+
+                    Trial trial = new Trial(null, participants, trialName);
                     Referee referee = new Referee(id, name, password, trial);
+                    trial.setReferee(referee);
                     logger.trace("Found referee {}", referee);
                     return Optional.of(referee);
                 } else {
@@ -75,6 +78,26 @@ public class RefereeDBRepo implements RefereeRepository {
             System.err.println("Error DB " + ex);
             return Optional.empty();
         }
+    }
+
+
+    private List<Participant> getParticipantsForTrialRef(Long trialId) throws SQLException {
+        List<Participant> participants = new ArrayList<>();
+        try (Connection con = dbUtils.getNewConnection();
+             PreparedStatement preStmt = con.prepareStatement("SELECT p.* FROM participants p " +
+                     "INNER JOIN results res ON p.id = res.participant_id " +
+                     "WHERE res.trial_id = ?")) {
+            preStmt.setLong(1, trialId);
+            try (ResultSet resultSet = preStmt.executeQuery()) {
+                while (resultSet.next()) {
+                    Long id = resultSet.getLong("id");
+                    String name = resultSet.getString("name");
+                    Integer points = resultSet.getInt("points");
+                    participants.add(new Participant(id, name, points));
+                }
+            }
+        }
+        return participants;
     }
 
     @Override
@@ -126,29 +149,32 @@ public class RefereeDBRepo implements RefereeRepository {
         }
     }
 
-    @Override
     public List<Referee> getAll() {
         logger.traceEntry("Getting all referees");
         List<Referee> referees = new ArrayList<>();
-        Connection con = dbUtils.getConnection();
-        try (PreparedStatement preStmt = con.prepareStatement("SELECT * FROM referees");
+        try (Connection con = dbUtils.getConnection();
+             PreparedStatement preStmt = con.prepareStatement("SELECT referees.id, referees.name, referees.password, referees.trial_id, trials.name AS trial_name FROM referees INNER JOIN trials ON referees.trial_id = trials.id");
              ResultSet resultSet = preStmt.executeQuery()) {
+
             while (resultSet.next()) {
                 Long id = resultSet.getLong("id");
                 String name = resultSet.getString("name");
                 String password = resultSet.getString("password");
                 Long trialId = resultSet.getLong("trial_id");
-                // Assuming you have a TrialRepository and a method getById to fetch Trial object by id
-                Trial trial = trialRepository.getById(trialId).orElse(null);
+                String trialName = resultSet.getString("trial_name");
+                List<Participant> participants = getParticipantsForTrialRef(trialId);
+
+                Trial trial = new Trial(trialId, null, participants, trialName);
                 Referee referee = new Referee(id, name, password, trial);
+                trial.setReferee(referee);
                 referees.add(referee);
             }
             logger.traceExit("Retrieved {} referees", referees.size());
-            return referees;
         } catch (SQLException ex) {
             logger.error(ex);
             System.err.println("Error DB " + ex);
-            return Collections.emptyList();
         }
+        return referees;
     }
+
 }

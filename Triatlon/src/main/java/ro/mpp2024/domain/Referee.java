@@ -8,15 +8,6 @@ public class Referee extends Entity<Long>{
 
     private Trial trial;
 
-    @Override
-    public String toString() {
-        return "Referee{" +
-                "id=" + super.getId() + '\'' +
-                "name='" + name + '\'' +
-                ", password='" + password + '\'' +
-                ", trial=" + trial +
-                '}';
-    }
 
     public Referee(Long aLong, String name, String password, Trial trial) {
         super(aLong);

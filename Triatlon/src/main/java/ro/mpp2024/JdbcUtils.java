@@ -22,7 +22,7 @@ public class JdbcUtils {
 
     private  Connection instance=null;
 
-    private Connection getNewConnection(){
+    public Connection getNewConnection(){
         logger.traceEntry();
 
         String url=jdbcProps.getProperty("jdbc.url");

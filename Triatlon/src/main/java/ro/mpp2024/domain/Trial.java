@@ -9,18 +9,16 @@ public class Trial extends Entity<Long>{
     private List<Participant> participants;
     private String name;
 
-    @Override
-    public String toString() {
-        return "Trial{" +
-                "id=" + super.getId() + '\'' +
-                "referee=" + referee +
-                ", participants=" + participants +
-                ", name='" + name + '\'' +
-                '}';
-    }
+
 
     public Trial(Long aLong, Referee referee, List<Participant> participants, String name) {
         super(aLong);
+        this.referee = referee;
+        this.participants = participants;
+        this.name = name;
+    }
+    public Trial(Referee referee, List<Participant> participants, String name) {
+        super(null);
         this.referee = referee;
         this.participants = participants;
         this.name = name;

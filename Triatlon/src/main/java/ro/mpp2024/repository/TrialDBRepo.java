@@ -14,7 +14,6 @@ public class TrialDBRepo implements TrialRepository {
 
     private JdbcUtils dbUtils;
 
-    private RefereeRepository refereeRepository;
 
     private static final Logger logger = LogManager.getLogger();
 
@@ -22,6 +21,7 @@ public class TrialDBRepo implements TrialRepository {
         logger.info("Initializing TrialDBRepository with properties: {} ", props);
         dbUtils = new JdbcUtils(props);
     }
+
 
     @Override
     public Optional<Trial> save(Trial trial) {
@@ -53,15 +53,19 @@ public class TrialDBRepo implements TrialRepository {
     public Optional<Trial> getById(Long id) {
         logger.traceEntry("Getting trial with id {}", id);
         Connection con = dbUtils.getConnection();
-        try (PreparedStatement preStmt = con.prepareStatement("SELECT * FROM trials WHERE id = ?")) {
+        try (PreparedStatement preStmt = con.prepareStatement("SELECT trials.id, trials.name, trials.referee_id, referees.name AS referee_name, referees.password AS referee_password FROM trials INNER JOIN referees ON trials.referee_id = referees.id WHERE trials.id = ?")) {
             preStmt.setLong(1, id);
             try (ResultSet result = preStmt.executeQuery()) {
                 if (result.next()) {
                     String name = result.getString("name");
                     Long refereeId = result.getLong("referee_id");
+                    String refereeName = result.getString("referee_name");
+                    String refereePassword = result.getString("referee_password");
                     List<Participant> participants = getParticipantsForTrial(id);
-                    Referee referee = refereeRepository.getById(refereeId).orElse(null);
-                    Trial trial = new Trial(id, referee,participants, name);
+                    Referee referee = new Referee(refereeId, refereeName, refereePassword, null); // Nu avem încă informații complete despre proba asociată arbitrilor
+
+                    Trial trial = new Trial(id, referee, participants, name);
+                    referee.setTrial(trial);
                     logger.trace("Found trial {}", trial);
                     return Optional.of(trial);
                 } else {
@@ -75,6 +79,7 @@ public class TrialDBRepo implements TrialRepository {
             return Optional.empty();
         }
     }
+
 
     @Override
     public Optional<Trial> update(Trial trial) {
@@ -129,15 +134,19 @@ public class TrialDBRepo implements TrialRepository {
         logger.traceEntry("Getting all trials");
         List<Trial> trials = new ArrayList<>();
         Connection con = dbUtils.getConnection();
-        try (PreparedStatement preStmt = con.prepareStatement("SELECT * FROM trials");
+        try (PreparedStatement preStmt = con.prepareStatement("SELECT trials.id, trials.name, trials.referee_id AS referee_id, referees.name AS referee_name, referees.password AS referee_password FROM trials INNER JOIN referees ON trials.referee_id = referees.id");
              ResultSet resultSet = preStmt.executeQuery()) {
             while (resultSet.next()) {
                 Long id = resultSet.getLong("id");
                 String name = resultSet.getString("name");
                 Long refereeId = resultSet.getLong("referee_id");
+                String refereeName = resultSet.getString("referee_name");
+                String refereePassword = resultSet.getString("referee_password");
                 List<Participant> participants = getParticipantsForTrial(id);
-                Referee referee = refereeRepository.getById(refereeId).orElse(null);
-                Trial trial = new Trial(id, referee,participants,name);
+                Referee referee = new Referee(refereeId, refereeName, refereePassword, null); // Nu avem încă informații complete despre proba asociată arbitrilor
+
+                Trial trial = new Trial(id, referee, participants, name);
+                referee.setTrial(trial);
                 trials.add(trial);
             }
             logger.traceExit("Retrieved {} trials", trials.size());
@@ -145,15 +154,16 @@ public class TrialDBRepo implements TrialRepository {
         } catch (SQLException ex) {
             logger.error(ex);
             System.err.println("Error DB " + ex);
-            return Collections.emptyList();
+            return trials;
         }
     }
+
     private List<Participant> getParticipantsForTrial(Long trialId) throws SQLException {
         List<Participant> participants = new ArrayList<>();
         try (Connection con = dbUtils.getConnection();
              PreparedStatement preStmt = con.prepareStatement("SELECT p.* FROM participants p " +
-                     "INNER JOIN trial_participants tp ON p.id = tp.participant_id " +
-                     "WHERE tp.trial_id = ?")) {
+                     "INNER JOIN results res ON p.id = res.participant_id " +
+                     "WHERE res.trial_id = ?")) {
             preStmt.setLong(1, trialId);
             try (ResultSet resultSet = preStmt.executeQuery()) {
                 while (resultSet.next()) {

@@ -16,6 +16,13 @@ public class Result extends Entity<Long>{
         this.result = result;
     }
 
+    public Result(Participant participant, Trial trial,Integer result) {
+        super(null);
+        this.participant = participant;
+        this.trial = trial;
+        this.result = result;
+    }
+
     public Participant getParticipant() {
         return participant;
     }
@@ -30,5 +37,13 @@ public class Result extends Entity<Long>{
 
     public void setTrial(Trial trial) {
         this.trial = trial;
+    }
+
+    public Integer getResult() {
+        return result;
+    }
+
+    public void setResult(Integer result) {
+        this.result = result;
     }
 }

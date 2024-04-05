@@ -17,7 +17,7 @@ public class ParticipantDBRepo implements ParticipantRepository{
     private static final Logger logger= LogManager.getLogger();
 
     public ParticipantDBRepo(Properties props) {
-        logger.info("Initializing CarsDBRepository with properties: {} ",props);
+        logger.info("Initializing ParticipantDBRepository with properties: {} ",props);
         dbUtils=new JdbcUtils(props);
     }
     @Override
@@ -129,9 +129,34 @@ public class ParticipantDBRepo implements ParticipantRepository{
         } catch (SQLException ex) {
             logger.error(ex);
             System.err.println("Error DB " + ex);
+            return participants;
+        }
+    }
+
+    @Override
+    public List<Participant> getAllSorted() {
+        logger.traceEntry("Getting all participants");
+        List<Participant> participants = new ArrayList<>();
+        Connection con = dbUtils.getConnection();
+        try (PreparedStatement preStmt = con.prepareStatement("SELECT * FROM participants ORDER BY name ASC");
+             ResultSet resultSet = preStmt.executeQuery()) {
+            while (resultSet.next()) {
+                Long id = resultSet.getLong("id");
+                String name = resultSet.getString("name");
+                Integer points = resultSet.getInt("points");
+                Participant participant = new Participant(id, name, points);
+                participants.add(participant);
+            }
+            logger.traceExit("Retrieved {} participants", participants.size());
+            return participants;
+        } catch (SQLException ex) {
+            logger.error(ex);
+            System.err.println("Error DB " + ex);
             return Collections.emptyList();
         }
     }
+
+
 
 
 }
